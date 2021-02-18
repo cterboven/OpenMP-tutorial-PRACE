@@ -38,6 +38,9 @@ void matmul_par(float * C, float * A, float * B, size_t n) {
 }
 
 void matmul_tloop(float * C, float * A, float * B, size_t n) {
+#pragma omp parallel firstprivate(n)
+#pragma omp single nowait
+#pragma omp taskloop
     for (size_t i = 0; i < n; ++i) {
         for (size_t k = 0; k < n; ++k) {
             for (size_t j = 0; j < n; ++j) {
@@ -53,11 +56,17 @@ void matmul_task(float * C, float * A, float * B, size_t n) {
         printf("Blocking factor does not divide matrix size!\n");
         exit(EXIT_FAILURE);
     }
+#pragma omp parallel firstprivate(n, bf)
+#pragma omp master
     {
         // work on the blocks of the matrix
         for (size_t ib = 0; ib < n; ib += bf)
             for (size_t kb = 0; kb < n; kb += bf)
                 for (size_t jb = 0; jb < n; jb += bf) {
+#pragma omp task firstprivate(ib, kb, jb) firstprivate(n, bf) \
+                 depend(inout:C[ib * n + jb:bf]) \
+                 depend(in:A[ib * n + kb:bf]) \
+                 depend(in:B[kb * n + jb:bf])
                     {
 #if DUMP_TASKS
                         printf("task: C[%ld,%ld] += A[%ld,%ld] o B[%ld,%ld]\n", ib, jb, ib, kb, kb, jb);
